@@ -33,6 +33,7 @@ import (
 
 	"go.dedis.ch/dela/cli/node"
 	access "go.dedis.ch/dela/contracts/access/controller"
+	auction "go.dedis.ch/dela/contracts/auction/controller"
 	cosipbft "go.dedis.ch/dela/core/ordering/cosipbft/controller"
 	db "go.dedis.ch/dela/core/store/kv/controller"
 	pool "go.dedis.ch/dela/core/txn/pool/controller"
@@ -68,6 +69,7 @@ func runWithCfg(args []string, cfg config) error {
 		pool.NewController(),
 		access.NewController(),
 		proxy.NewController(),
+		auction.NewController(),
 	)
 
 	app := builder.Build()

@@ -65,28 +65,38 @@ func TestIntegration_Auction_Simple(t *testing.T) {
 	pubKeyBuf, err := signer.GetPublicKey().MarshalBinary()
 	require.NoError(t, err)
 
-	// args := []txn.Arg{
-	// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
-	// 	{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
-	// 	{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.Value")},
-	// 	{Key: "access:grant_command", Value: []byte("all")},
-	// 	{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
-	// 	{Key: "access:command", Value: []byte("GRANT")},
-	// }
-	// err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
-	// require.NoError(t, err)
-	fmt.Println("AUCTION CONTRACT NAME")
-	fmt.Println(auctionContract.ContractName)
 	args := []txn.Arg{
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
 		{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
-		{Key: "access:grant_contract", Value: []byte(auctionContract.ContractName)},
+		{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.Value")},
 		{Key: "access:grant_command", Value: []byte("all")},
 		{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
 		{Key: "access:command", Value: []byte("GRANT")},
 	}
 	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
 	require.NoError(t, err)
+	fmt.Println("AUCTION CONTRACT NAME")
+	fmt.Println(auctionContract.ContractName)
+	args = []txn.Arg{
+		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
+		{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
+		{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.Auction")},
+		{Key: "access:grant_command", Value: []byte("all")},
+		{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
+		{Key: "access:command", Value: []byte("GRANT")},
+	}
+	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
+	require.NoError(t, err)
+	// args := []txn.Arg{
+	// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
+	// 	{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
+	// 	{Key: "access:grant_contract", Value: []byte(auctionContract.ContractName)},
+	// 	{Key: "access:grant_command", Value: []byte("all")},
+	// 	{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
+	// 	{Key: "access:command", Value: []byte("GRANT")},
+	// }
+	// err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
+	// require.NoError(t, err)
 
 	key1 := make([]byte, 32)
 
