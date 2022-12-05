@@ -96,7 +96,7 @@ const (
 	CmdReveal Command = "REVEAL"
 
 	// CmdWinner defines the command to select the auction winner
-	CmdWinner Command = "SELECTWINNER"
+	CmdSelectWinner Command = "SELECTWINNER"
 )
 
 // NewCreds creates new credentials for an auction contract execution. We might
@@ -179,6 +179,11 @@ func (c Contract) Execute(snap store.Snapshot, step execution.Step) error {
 		err := c.cmd.reveal(snap, step)
 		if err != nil {
 			return xerrors.Errorf("failed to REVEAL: %v", err)
+		}
+	case CmdSelectWinner:
+		err := c.cmd.selectWinner(snap, step)
+		if err != nil {
+			return xerrors.Errorf("failed to SELECTWINNER: %v", err)
 		}
 	default:
 		return xerrors.Errorf("unknown command: %s", cmd)
@@ -844,6 +849,9 @@ func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) e
 	}
 
 	// TODO: REFUND LOSERS
+
+	output := "Highest Bidder: " + string(highestBidder) + ", Highest Bid: " + fmt.Sprint(highestBid)
+	fmt.Fprint(c.printer, output)
 
 	// dela.Logger.Info().Str("contract", ContractName).Msgf("setting Highest Bidder=%s", highestBidder)
 

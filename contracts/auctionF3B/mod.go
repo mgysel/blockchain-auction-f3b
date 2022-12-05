@@ -72,7 +72,7 @@ const (
 	CmdBid Command = "BID"
 
 	// CmdWinner defines the command to select the auction winner
-	CmdWinner Command = "SELECTWINNER"
+	CmdSelectWinner Command = "SELECTWINNER"
 )
 
 // NewCreds creates new credentials for an auction contract execution. We might
@@ -146,6 +146,11 @@ func (c Contract) Execute(snap store.Snapshot, step execution.Step) error {
 		err := c.cmd.bid(snap, step)
 		if err != nil {
 			return xerrors.Errorf("failed to BID: %v", err)
+		}
+	case CmdSelectWinner:
+		err := c.cmd.selectWinner(snap, step)
+		if err != nil {
+			return xerrors.Errorf("failed to SELECTWINNER: %v", err)
 		}
 	default:
 		return xerrors.Errorf("unknown command: %s", cmd)
@@ -480,9 +485,17 @@ func handleNewBid(snap store.Snapshot, bid []byte, pk []byte) error {
 
 		// TODO: Return deposit of old highest bidder
 		// Send tx to oldHighestBidder with oldHighestBid
+		fmt.Println("Return deposit of old highest bidder")
+		fmt.Println("Old highest bidder: ", oldHighestBidder)
+		fmt.Println("Old highest bid: ", oldHighestBid)
 
+		return nil
 	} else {
 		// TODO: Return deposit of this bidder
+		fmt.Println("Return deposit of this bidder")
+		fmt.Println("This bidder: ", string(pk))
+		fmt.Println("This bid: ", string(bid))
+		return nil
 	}
 
 	return nil
@@ -526,6 +539,43 @@ func (c auctionCommand) bid(snap store.Snapshot, step execution.Step) error {
 	}
 
 	dela.Logger.Info().Str("contract", ContractName).Msgf("setting %v=%v", pub_key, bid)
+
+	return nil
+}
+
+// selectWinner implements commands. It performs the SELECTWINNER command
+// Auction SC searches for the highest reveal, ensures it matches bid, and selects that winner
+func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) error {
+	// Ensure tx pk is contract owner
+	pub_key, err := step.Current.GetIdentity().MarshalText()
+	if err != nil {
+		return xerrors.Errorf("Could not obtain pk from tx")
+	}
+	isOwner, err := isAuctionOwner(snap, pub_key)
+	if !isOwner {
+		return xerrors.Errorf("selectWinner not called by contract owner")
+	}
+
+	// Ensure auction is complete
+	isAuctionOver, err := isAuctionOver(snap)
+	if !isAuctionOver {
+		return xerrors.Errorf("Auction is not over")
+	}
+
+	// Get highest bidder, highest bid
+	highestBidder, err := getHighestBidder(snap)
+	if err != nil {
+		return xerrors.Errorf("Could not get highest bidder")
+	}
+	highestBid, err := getHighestBid(snap)
+	if err != nil {
+		return xerrors.Errorf("Could not get highest bid")
+	}
+	
+	output := "Highest Bidder: " + string(highestBidder) + ", Highest Bid: " + string(highestBid)
+	fmt.Fprint(c.printer, output)
+
+	// dela.Logger.Info().Str("contract", ContractName).Msgf("setting Highest Bidder=%s", highestBidder)
 
 	return nil
 }
