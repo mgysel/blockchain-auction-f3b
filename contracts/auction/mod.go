@@ -29,6 +29,7 @@ const (
 	HighestBidKey           = "auction:highest_bid"
 	BlockNumberKey          = "auction:block_number"
 	ListDelimiter           = ";"
+	BankKey                 = "bank"
 	BidKey                  = "bid"
 	DepositKey              = "deposit"
 	RevealBidKey            = "reveal:bid"
@@ -689,11 +690,6 @@ func getRevealersList(snap store.Snapshot) ([]string, error) {
 // Deposit >= Bid
 func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid []byte, revealNonce []byte) (bool, error) {
 	// 1. Compare bid to Hash(RevealBid, RevealNonce)
-	fmt.Println("INSIDE IS VALID REVEAL")
-	fmt.Println("PK: ", string(pk))
-	fmt.Println("Reveal Bid: ", string(revealBid))
-	fmt.Println("Reveal Nonce: ", string(revealNonce))
-
 	revealHash, err := c.HashReveal(revealBid, revealNonce)
 	if err != nil {
 		return false, xerrors.Errorf(("Failed to hash (bid, nonce) '%s"), pk)
@@ -702,7 +698,6 @@ func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid 
 	if err != nil {
 		return false, xerrors.Errorf(("No bid from user '%s"), pk)
 	}
-	fmt.Println("Bid: ", string(bid))
 	comparison := bytes.Compare(bid, revealHash)
 	if comparison != 0 {
 		return false, xerrors.Errorf("Bid does not match reveal hash")
@@ -713,7 +708,6 @@ func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid 
 	if err != nil {
 		return false, xerrors.Errorf(("No deposit from user '%s"), pk)
 	}
-	fmt.Println("Deposit: ", string(deposit))
 	depositInt, err := byteToInt(deposit)
 	if err != nil {
 		return false, xerrors.Errorf(("Failed to convert deposit to int '%s"), pk)

@@ -24,6 +24,7 @@ const (
 	HighestBidKey           = "auction:highest_bid"
 	BlockNumberKey          = "auction:block_number"
 	ListDelimiter           = ";"
+	BankKey                 = "bank"
 	BidKey                  = "bid"
 	DepositKey              = "deposit"
 	RevealBidKey            = "reveal:bid"
@@ -446,21 +447,6 @@ func isHighestBidder(snap store.Snapshot, bid []byte) (bool, error) {
 	return false, nil
 
 }
-
-// func makeAuctionTx(t *testing.T, signer crypto.Signer, args ...string) txn.Transaction {
-// 	t.Log("INSIDE MAKE TX")
-// 	pub_key, err := signer.GetPublicKey().MarshalBinary()
-// 	t.Log("SIGNER PUBLIC KEY: ", string(pub_key))
-// 	options := []signed.TransactionOption{}
-// 	for i := 0; i < len(args)-1; i += 2 {
-// 		options = append(options, signed.WithArg(args[i], []byte(args[i+1])))
-// 	}
-
-// 	tx, err := signed.NewTransaction(0, signer.GetPublicKey(), options...)
-// 	require.NoError(t, err)
-
-// 	return tx
-// }
 
 // handleNewBid handles a new bid
 // 1. Checks if highest bidder
