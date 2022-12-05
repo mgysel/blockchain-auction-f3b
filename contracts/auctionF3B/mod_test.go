@@ -76,77 +76,184 @@ func TestCommand_Init(t *testing.T) {
 	require.Equal(t, val_res, "-1")
 }
 
-// func TestCommand_Bid(t *testing.T) {
-// 	contract := NewContract([]byte{}, fakeAccess{})
-// 	signer := fake.NewSigner()
+func TestCommand_Bid(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer := bls.NewSigner()
+	pkByte, err := signer.GetPublicKey().MarshalText()
+	pk := string(pkByte)
 
-// 	cmd := auctionCommand{
-// 		Contract: &contract,
-// 	}
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
 
-// 	// Initialize smart contract
-// 	bid_length := "2"
-// 	reveal_length := "2"
-// 	snap := fake.NewSnapshot()
-// 	step := makeStep(t, signer, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length)
-// 	err := cmd.init(snap, step)
+	// Initialize smart contract
+	bid_length := "2"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer, InitBidLengthArg, bid_length)
+	err = cmd.init(snap, step)
 
-// 	// Bid Hash(Bid, Nonce) with no error
-// 	bidBid := []byte("1")
-// 	bidNonce := []byte("Nonce")
-// 	bidByte, err := contract.HashReveal(bidBid, bidNonce)
-// 	bid := string(bidByte)
-// 	step = makeStep(t, signer, BidArg, bid)
-// 	err = cmd.bid(snap, step)
-// 	require.NoError(t, err)
-// 	// Check store for (pub_key:bid, Hash(Bid, Nonce))
-// 	pub_key, err := step.Current.GetIdentity().MarshalText()
-// 	key := []byte(fmt.Sprintf("%s:%s", string(pub_key), "bid"))
-// 	bidResByte, err := snap.Get(key)
-// 	bidRes := string(bidResByte)
-// 	require.Equal(t, bid, bidRes)
+	// Bid with no error
+	bid := "1"
+	step = makeStep(t, signer, BidArg, bid)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
 
-// 	// Check store for (auction:bidders, pub_key)
-// 	key = []byte("auction:bidders")
-// 	val, err := snap.Get(key)
-// 	val_res := string(val)
-// 	require.Equal(t, fmt.Sprintf("%s;", string(pub_key)), val_res)
-// }
+	// Check store for (auction:highest_bid, 1)
+	key := []byte("auction:highest_bid")
+	bidResByte, err := snap.Get(key)
+	bidRes := string(bidResByte)
+	require.Equal(t, bidRes, bid)
 
-// func TestCommand_Bid_NotPeriod(t *testing.T) {
-// 	contract := NewContract([]byte{}, fakeAccess{})
-// 	signer1 := fake.NewSigner()
-// 	signer2 := fake.NewSigner()
+	// Check store for (auction:highestBidder, pk)
+	key = []byte("auction:highest_bidder")
+	bidderResByte, err := snap.Get(key)
+	bidderRes := string(bidderResByte)
+	require.Equal(t, bidderRes, pk)
+}
 
-// 	cmd := auctionCommand{
-// 		Contract: &contract,
-// 	}
+func TestCommand_Bid_NotPeriod(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer1 := fake.NewSigner()
+	signer2 := fake.NewSigner()
 
-// 	// Initialize smart contract
-// 	bid_length := "1"
-// 	reveal_length := "1"
-// 	snap := fake.NewSnapshot()
-// 	step := makeStep(t, signer1, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length)
-// 	err := cmd.init(snap, step)
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
 
-// 	// Bid Hash(Bid, Nonce) with no error
-// 	bidBid := []byte("1")
-// 	bidNonce := []byte("Nonce")
-// 	bidByte, err := contract.HashReveal(bidBid, bidNonce)
-// 	bid := string(bidByte)
-// 	step = makeStep(t, signer1, BidArg, bid)
-// 	err = cmd.bid(snap, step)
-// 	require.NoError(t, err)
+	// Initialize smart contract
+	bid_length := "1"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer1, InitBidLengthArg, bid_length)
+	err := cmd.init(snap, step)
 
-// 	// Second bid should give an error
-// 	bidBid = []byte("2")
-// 	bidNonce = []byte("Nonce")
-// 	bidByte, err = contract.HashReveal(bidBid, bidNonce)
-// 	bid = string(bidByte)
-// 	step = makeStep(t, signer2, BidArg, bid)
-// 	err = cmd.bid(snap, step)
-// 	require.EqualError(t, err, "Not valid bid period")
-// }
+	// Bid Hash(Bid, Nonce) with no error
+	bid := "1"
+	step = makeStep(t, signer1, BidArg, bid)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
+
+	// Second bid should give an error
+	bid = "2"
+	step = makeStep(t, signer2, BidArg, bid)
+	err = cmd.bid(snap, step)
+	require.EqualError(t, err, "Not valid bid period")
+}
+
+func TestCommand_Multiple_Bidders(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer1 := fake.NewSigner()
+	signer2 := fake.NewSigner()
+	pk2, err := signer2.GetPublicKey().MarshalText()
+
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
+
+	// Initialize smart contract
+	bid_length := "2"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer1, InitBidLengthArg, bid_length)
+	err = cmd.init(snap, step)
+
+	// First Bid
+	bid1 := "1"
+	step = makeStep(t, signer1, BidArg, bid1)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
+
+	// Second Bid
+	bid2 := "2"
+	step = makeStep(t, signer2, BidArg, bid2)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
+
+	// Highest Bidder and Bid should be second bidder
+	// Check store for (auction:highest_bid, 1)
+	key := []byte("auction:highest_bid")
+	bidResByte, err := snap.Get(key)
+	bidRes := string(bidResByte)
+	require.Equal(t, bidRes, bid2)
+
+	// Check store for (auction:highestBidder, pk)
+	key = []byte("auction:highest_bidder")
+	bidderResByte, err := snap.Get(key)
+	bidderRes := string(bidderResByte)
+	require.Equal(t, bidderRes, string(pk2))
+}
+
+func TestCommand_HighestBidder_AuctionNotOver(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer := bls.NewSigner()
+
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
+
+	// Initialize smart contract
+	bid_length := "1"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer, InitBidLengthArg, bid_length)
+	err := cmd.init(snap, step)
+
+	// Check auction not over error
+	step = makeStep(t, signer)
+	err = cmd.selectWinner(snap, step)
+	require.EqualError(t, err, "Auction is not over")
+}
+
+func TestCommand_HighestBidder_NotOwner(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer1 := bls.NewSigner()
+	signer2 := bls.NewSigner()
+
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
+
+	// Initialize smart contract
+	bid_length := "1"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer1, InitBidLengthArg, bid_length)
+	err := cmd.init(snap, step)
+
+	// Check auction not over error
+	step = makeStep(t, signer2)
+	err = cmd.selectWinner(snap, step)
+	require.EqualError(t, err, "selectWinner not called by contract owner")
+}
+
+func TestCommand_HighestBidder(t *testing.T) {
+	contract := NewContract([]byte{}, fakeAccess{})
+	signer1 := bls.NewSigner()
+	signer2 := bls.NewSigner()
+
+	cmd := auctionCommand{
+		Contract: &contract,
+	}
+
+	// Initialize smart contract
+	bid_length := "2"
+	snap := fake.NewSnapshot()
+	step := makeStep(t, signer1, InitBidLengthArg, bid_length)
+	err := cmd.init(snap, step)
+
+	// First Bid
+	bid1 := "1"
+	step = makeStep(t, signer1, BidArg, bid1)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
+
+	// Second Bid
+	bid2 := "2"
+	step = makeStep(t, signer2, BidArg, bid2)
+	err = cmd.bid(snap, step)
+	require.NoError(t, err)
+
+	// Check no error
+	step = makeStep(t, signer1)
+	err = cmd.selectWinner(snap, step)
+	require.NoError(t, err)
+}
 
 func TestInfoLog(t *testing.T) {
 	log := infoLog{}
@@ -235,29 +342,3 @@ func (c fakeCmd) reveal(snap store.Snapshot, step execution.Step) error {
 func (c fakeCmd) selectWinner(snap store.Snapshot, step execution.Step) error {
 	return c.err
 }
-
-// // Helpers
-// // HashReveal hashes "revealBid;revealNonce" string
-// func (c Contract) HashRevealTest(revealBid []byte, revealNonce []byte) ([]byte, error) {
-// 	reveal := []byte(fmt.Sprintf("%v;%v", string(revealBid), string(revealNonce)))
-
-// 	h := c.hashFactory.New()
-// 	_, err := h.Write(reveal)
-// 	if err != nil {
-// 		return nil, xerrors.Errorf("leaf node failed: %v", err)
-// 	}
-
-// 	return h.Sum(nil), nil
-// }
-
-// func (c fakeCmd) read(snap store.Snapshot, step execution.Step) error {
-// 	return c.err
-// }
-
-// func (c fakeCmd) delete(snap store.Snapshot, step execution.Step) error {
-// 	return c.err
-// }
-
-// func (c fakeCmd) list(snap store.Snapshot) error {
-// 	return c.err
-// }

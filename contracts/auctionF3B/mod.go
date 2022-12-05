@@ -36,6 +36,7 @@ const (
 type commands interface {
 	init(snap store.Snapshot, step execution.Step) error
 	bid(snap store.Snapshot, step execution.Step) error
+	selectWinner(snap store.Snapshot, step execution.Step) error
 }
 
 const (
@@ -394,7 +395,7 @@ func (c auctionCommand) init(snap store.Snapshot, step execution.Step) error {
 		return xerrors.Errorf("failed to set block number: %v", err)
 	}
 
-	dela.Logger.Info().Str("contract", ContractName).Msgf("setting %x=%s, %s=%s", keyBidLength, valBidLength, keyRevealLength, valRevealLength)
+	dela.Logger.Info().Str("contract", ContractName).Msgf("setting %x=%s", keyBidLength, valBidLength)
 
 	return nil
 }
@@ -571,7 +572,7 @@ func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) e
 	if err != nil {
 		return xerrors.Errorf("Could not get highest bid")
 	}
-	
+
 	output := "Highest Bidder: " + string(highestBidder) + ", Highest Bid: " + string(highestBid)
 	fmt.Fprint(c.printer, output)
 
