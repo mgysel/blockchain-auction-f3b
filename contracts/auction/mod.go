@@ -197,6 +197,17 @@ type auctionCommand struct {
 // ########################## HELPER FUNCTIONS ################################
 // ############################################################################
 
+// Converts a byte array to an integer
+// Returns error if cannot be converted
+func byteToInt(Byte []byte) (int, error) {
+	deposit, err := strconv.Atoi(string(Byte))
+	if err != nil {
+		return -1, xerrors.Errorf("Failed to convert Byte Array to int", err)
+	}
+
+	return deposit, nil
+}
+
 // HashReveal hashes "revealBid;revealNonce" string
 func (c Contract) HashReveal(revealBid []byte, revealNonce []byte) ([]byte, error) {
 	reveal := []byte(fmt.Sprintf("%v;%v", string(revealBid), string(revealNonce)))
@@ -460,7 +471,7 @@ func getBid(snap store.Snapshot, bidder []byte) ([]byte, error) {
 	bidKey := []byte(fmt.Sprintf("%s:%s", string(bidder), BidKey))
 	bid, err := snap.Get(bidKey)
 	if err != nil {
-		return []byte{}, xerrors.Errorf("failed to get reveal bid", err)
+		return []byte{}, xerrors.Errorf("failed to get bid", err)
 	}
 
 	return bid, nil
@@ -473,6 +484,30 @@ func storeBid(snap store.Snapshot, bidder []byte, bid []byte) error {
 	err := snap.Set(key, val)
 	if err != nil {
 		return xerrors.Errorf("failed to set bid: %v", err)
+	}
+
+	return nil
+}
+
+// getDeposit gets a deposit from a bidder
+func getDeposit(snap store.Snapshot, pk []byte) ([]byte, error) {
+	// Get deposit from database
+	depositKey := []byte(fmt.Sprintf("%s:%s", string(pk), DepositKey))
+	deposit, err := snap.Get(depositKey)
+	if err != nil {
+		return []byte{}, xerrors.Errorf("failed to get deposit", err)
+	}
+
+	return deposit, nil
+}
+
+// storeDeposit stores a deposit from a bidder
+func storeDeposit(snap store.Snapshot, bidder []byte, deposit []byte) error {
+	key := []byte(fmt.Sprintf("%s:%s", string(bidder), "deposit"))
+	val := deposit
+	err := snap.Set(key, val)
+	if err != nil {
+		return xerrors.Errorf("failed to set deposit: %v", err)
 	}
 
 	return nil
@@ -539,8 +574,19 @@ func (c auctionCommand) bid(snap store.Snapshot, step execution.Step) error {
 		return xerrors.Errorf("'%s' not found in tx arg", BidDepositArg)
 	}
 
+	// Check that deposit is an integer value
+	_, err = byteToInt(deposit)
+	if err != nil {
+		return xerrors.Errorf("Deposit is not an integer value")
+	}
+
 	// Store bid as (pub_key:bid, bid)
 	err = storeBid(snap, pub_key, bid)
+	if err != nil {
+		return err
+	}
+	// Store deposit as (pub_key:deposit, deposit)
+	err = storeDeposit(snap, pub_key, deposit)
 	if err != nil {
 		return err
 	}
@@ -550,12 +596,6 @@ func (c auctionCommand) bid(snap store.Snapshot, step execution.Step) error {
 	if err != nil {
 		return err
 	}
-
-	// Store deposit as (pub_key:deposit, deposit)
-	// err = storeDeposit(snap, pub_key, deposit)
-	// if err != nil {
-	// 	return err
-	// }
 
 	// Increment block number
 	err = incBlockNumber(snap)
@@ -644,6 +684,51 @@ func getRevealersList(snap store.Snapshot) ([]string, error) {
 	return bidders, nil
 }
 
+// Checks if a reveal is valid. Reveal is valid if
+// Hash(Bid, Nonce) = Bid
+// Deposit >= Bid
+func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid []byte, revealNonce []byte) (bool, error) {
+	// 1. Compare bid to Hash(RevealBid, RevealNonce)
+	fmt.Println("INSIDE IS VALID REVEAL")
+	fmt.Println("PK: ", string(pk))
+	fmt.Println("Reveal Bid: ", string(revealBid))
+	fmt.Println("Reveal Nonce: ", string(revealNonce))
+
+	revealHash, err := c.HashReveal(revealBid, revealNonce)
+	if err != nil {
+		return false, xerrors.Errorf(("Failed to hash (bid, nonce) '%s"), pk)
+	}
+	bid, err := getBid(snap, pk)
+	if err != nil {
+		return false, xerrors.Errorf(("No bid from user '%s"), pk)
+	}
+	fmt.Println("Bid: ", string(bid))
+	comparison := bytes.Compare(bid, revealHash)
+	if comparison != 0 {
+		return false, xerrors.Errorf("Bid does not match reveal hash")
+	}
+
+	// 2. Chek that deposit >= bid
+	deposit, err := getDeposit(snap, pk)
+	if err != nil {
+		return false, xerrors.Errorf(("No deposit from user '%s"), pk)
+	}
+	fmt.Println("Deposit: ", string(deposit))
+	depositInt, err := byteToInt(deposit)
+	if err != nil {
+		return false, xerrors.Errorf(("Failed to convert deposit to int '%s"), pk)
+	}
+	revealBidInt, err := byteToInt(revealBid)
+	if err != nil {
+		return false, xerrors.Errorf(("Failed to convert bid to int '%s"), pk)
+	}
+	if depositInt < revealBidInt {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // reveal implements commands. It performs the REVEAL command
 // User reveals bid, nonce
 func (c auctionCommand) reveal(snap store.Snapshot, step execution.Step) error {
@@ -674,17 +759,10 @@ func (c auctionCommand) reveal(snap store.Snapshot, step execution.Step) error {
 		return xerrors.Errorf("'%s' not found in tx arg", RevealNonceArg)
 	}
 
-	// Hash Reveal
-	revealHash, err := c.HashReveal(revealBid, revealNonce)
-	// Get bid
-	bid, err := getBid(snap, pub_key)
-	if err != nil {
-		return xerrors.Errorf(("No bid from user '%s"), pub_key)
-	}
-	// Check that bid matches reveal
-	comparison := bytes.Compare(bid, revealHash)
-	if comparison != 0 {
-		return xerrors.Errorf("Bid does not match reveal hash")
+	// Check that reveal is valid
+	isValid, err := c.isValidReveal(snap, pub_key, revealBid, revealNonce)
+	if !isValid || err != nil {
+		return xerrors.Errorf("Reveal is not valid: %s", err)
 	}
 
 	// Store reveal
@@ -734,14 +812,11 @@ func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) e
 	if err != nil {
 		return err
 	}
-	fmt.Println("Revealers: ", revealers)
 
 	// Iterate through reveals, selecting highest bidder
 	highestBidder := []byte{}
 	highestBid := -1
-	i := 1
 	for _, thisRevealer := range revealers {
-		fmt.Println("This Revealer iteration: ", i)
 		revealer := []byte(thisRevealer)
 		// FOR TESTING
 		fmt.Println("This Revealer: ", thisRevealer)
@@ -751,8 +826,6 @@ func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) e
 		if err != nil {
 			return xerrors.Errorf("failed to get reveal for revealer: %v. Error: %v", revealer, err)
 		}
-		// FOR TESTING
-		fmt.Println("This Reveal Bid: ", revealBid)
 		// Convert reveal to integer
 		revealBidInt, err := strconv.Atoi(string(revealBid))
 		if err != nil {
@@ -763,8 +836,6 @@ func (c auctionCommand) selectWinner(snap store.Snapshot, step execution.Step) e
 			highestBidder = revealer
 			highestBid = revealBidInt
 		}
-
-		i += 1
 	}
 
 	// Now we have the highestBidder, store highestBidder

@@ -108,12 +108,13 @@ func TestCommand_Bid(t *testing.T) {
 	step := makeStep(t, signer, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length)
 	err := cmd.init(snap, step)
 
-	// Bid Hash(Bid, Nonce) with no error
+	// Bid Deposit, Hash(Bid, Nonce) with no error
+	bidDeposit := "1"
 	bidBid := []byte("1")
 	bidNonce := []byte("Nonce")
 	bidByte, err := contract.HashReveal(bidBid, bidNonce)
 	bid := string(bidByte)
-	step = makeStep(t, signer, BidArg, bid)
+	step = makeStep(t, signer, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 	// Check store for (pub_key:bid, Hash(Bid, Nonce))
@@ -122,6 +123,11 @@ func TestCommand_Bid(t *testing.T) {
 	bidResByte, err := snap.Get(key)
 	bidRes := string(bidResByte)
 	require.Equal(t, bid, bidRes)
+	// Check store for (pub_key:deposit, deposit)
+	key = []byte(fmt.Sprintf("%s:%s", string(pub_key), "deposit"))
+	bidDepositResByte, err := snap.Get(key)
+	bidDepositRes := string(bidDepositResByte)
+	require.Equal(t, bidDeposit, bidDepositRes)
 
 	// Check store for (auction:bidders, pub_key)
 	key = []byte("auction:bidders")
@@ -147,20 +153,22 @@ func TestCommand_Bid_NotPeriod(t *testing.T) {
 	err := cmd.init(snap, step)
 
 	// Bid Hash(Bid, Nonce) with no error
+	bidDeposit := "1"
 	bidBid := []byte("1")
 	bidNonce := []byte("Nonce")
 	bidByte, err := contract.HashReveal(bidBid, bidNonce)
 	bid := string(bidByte)
-	step = makeStep(t, signer1, BidArg, bid)
+	step = makeStep(t, signer1, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 
 	// Second bid should give an error
+	bidDeposit = "2"
 	bidBid = []byte("2")
 	bidNonce = []byte("Nonce")
 	bidByte, err = contract.HashReveal(bidBid, bidNonce)
 	bid = string(bidByte)
-	step = makeStep(t, signer2, BidArg, bid)
+	step = makeStep(t, signer2, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.EqualError(t, err, "Not valid bid period")
 }
@@ -181,11 +189,12 @@ func TestCommand_RevealInputs(t *testing.T) {
 	err := cmd.init(snap, step)
 
 	// Make bid
+	bidDeposit := "1"
 	bidBid := []byte("1")
 	bidNonce := []byte("Nonce")
 	bidByte, err := contract.HashReveal(bidBid, bidNonce)
 	bid := string(bidByte)
-	step = makeStep(t, signer, BidArg, bid)
+	step = makeStep(t, signer, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 
@@ -203,7 +212,7 @@ func TestCommand_RevealInputs(t *testing.T) {
 
 func TestCommand_RevealOneBid(t *testing.T) {
 	contract := NewContract([]byte{}, fakeAccess{})
-	signer := fake.NewSigner()
+	signer := bls.NewSigner()
 
 	cmd := auctionCommand{
 		Contract: &contract,
@@ -217,10 +226,11 @@ func TestCommand_RevealOneBid(t *testing.T) {
 	err := cmd.init(snap, step)
 
 	// Make bid
+	bidDeposit := "1"
 	bidBid := "1"
 	bidNonce := "Nonce"
 	bid, err := contract.HashReveal([]byte(bidBid), []byte(bidNonce))
-	step = makeStep(t, signer, BidArg, string(bid))
+	step = makeStep(t, signer, BidArg, string(bid), BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 
@@ -265,17 +275,19 @@ func TestCommand_RevealMultipleBids(t *testing.T) {
 	err := cmd.init(snap, step)
 
 	// Make first bid
+	bidDeposit := "1"
 	bidBid := "1"
 	bidNonce := "Nonce"
 	bid, err := contract.HashReveal([]byte(bidBid), []byte(bidNonce))
-	step = makeStep(t, signer1, BidArg, string(bid))
+	step = makeStep(t, signer1, BidArg, string(bid), BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 
 	// Make second bid
+	bidDeposit = "2"
 	bidBid = "2"
 	bidNonce = "Nonce"
 	bid, err = contract.HashReveal([]byte(bidBid), []byte(bidNonce))
-	step = makeStep(t, signer2, BidArg, string(bid))
+	step = makeStep(t, signer2, BidArg, string(bid), BidDepositArg, string(bidDeposit))
 	err = cmd.bid(snap, step)
 
 	// First reveal
@@ -354,20 +366,22 @@ func TestCommand_HighestBidder(t *testing.T) {
 	err := cmd.init(snap, step)
 
 	// Make bid 1
+	bidDeposit := "2"
 	bidBid := "1"
 	bidNonce := "Nonce"
 	bidBytes, err := contract.HashReveal([]byte(bidBid), []byte(bidNonce))
 	bid := string(bidBytes)
-	step = makeStep(t, signer1, BidArg, bid)
+	step = makeStep(t, signer1, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 
 	// Make bid 2
+	bidDeposit = "2"
 	bidBid = "2"
 	bidNonce = "Nonce"
 	bidBytes, err = contract.HashReveal([]byte(bidBid), []byte(bidNonce))
 	bid = string(bidBytes)
-	step = makeStep(t, signer2, BidArg, bid)
+	step = makeStep(t, signer2, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
 
@@ -494,29 +508,3 @@ func (c fakeCmd) reveal(snap store.Snapshot, step execution.Step) error {
 func (c fakeCmd) selectWinner(snap store.Snapshot, step execution.Step) error {
 	return c.err
 }
-
-// // Helpers
-// // HashReveal hashes "revealBid;revealNonce" string
-// func (c Contract) HashRevealTest(revealBid []byte, revealNonce []byte) ([]byte, error) {
-// 	reveal := []byte(fmt.Sprintf("%v;%v", string(revealBid), string(revealNonce)))
-
-// 	h := c.hashFactory.New()
-// 	_, err := h.Write(reveal)
-// 	if err != nil {
-// 		return nil, xerrors.Errorf("leaf node failed: %v", err)
-// 	}
-
-// 	return h.Sum(nil), nil
-// }
-
-// func (c fakeCmd) read(snap store.Snapshot, step execution.Step) error {
-// 	return c.err
-// }
-
-// func (c fakeCmd) delete(snap store.Snapshot, step execution.Step) error {
-// 	return c.err
-// }
-
-// func (c fakeCmd) list(snap store.Snapshot) error {
-// 	return c.err
-// }

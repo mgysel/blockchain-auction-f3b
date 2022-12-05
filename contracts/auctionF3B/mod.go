@@ -447,6 +447,21 @@ func isHighestBidder(snap store.Snapshot, bid []byte) (bool, error) {
 
 }
 
+// func makeAuctionTx(t *testing.T, signer crypto.Signer, args ...string) txn.Transaction {
+// 	t.Log("INSIDE MAKE TX")
+// 	pub_key, err := signer.GetPublicKey().MarshalBinary()
+// 	t.Log("SIGNER PUBLIC KEY: ", string(pub_key))
+// 	options := []signed.TransactionOption{}
+// 	for i := 0; i < len(args)-1; i += 2 {
+// 		options = append(options, signed.WithArg(args[i], []byte(args[i+1])))
+// 	}
+
+// 	tx, err := signed.NewTransaction(0, signer.GetPublicKey(), options...)
+// 	require.NoError(t, err)
+
+// 	return tx
+// }
+
 // handleNewBid handles a new bid
 // 1. Checks if highest bidder
 // 2. If highest bidder, updates bid and returns deposit of old bidder
@@ -463,6 +478,10 @@ func handleNewBid(snap store.Snapshot, bid []byte, pk []byte) error {
 		if err != nil {
 			return xerrors.Errorf("Failed to get old highest bidder: %s", err)
 		}
+		oldHighestBid, err := getHighestBid(snap)
+		if err != nil {
+			return xerrors.Errorf("Failed to get old highest bid: %s", err)
+		}
 		// Update highest bid/bidder
 		err = setHighestBid(snap, bid)
 		if err != nil {
@@ -474,6 +493,7 @@ func handleNewBid(snap store.Snapshot, bid []byte, pk []byte) error {
 		}
 
 		// TODO: Return deposit of old highest bidder
+		// Send tx to oldHighestBidder with oldHighestBid
 
 	} else {
 		// TODO: Return deposit of this bidder

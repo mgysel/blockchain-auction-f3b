@@ -38,19 +38,16 @@ func TestCommand_Init(t *testing.T) {
 	}
 
 	bid_length := "2"
-	reveal_length := "2"
 
 	// Check error when no bid_length, or reveal_length
-	err := cmd.init(fake.NewBadSnapshot(), makeStep(t, signer, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length))
+	err := cmd.init(fake.NewBadSnapshot(), makeStep(t, signer, InitBidLengthArg, bid_length))
 	require.EqualError(t, err, fake.Err("failed to set owner"))
-	err = cmd.init(fake.NewSnapshot(), makeStep(t, signer, InitRevealLengthArg, reveal_length))
+	err = cmd.init(fake.NewSnapshot(), makeStep(t, signer))
 	require.EqualError(t, err, "'value:initBidLength' not found in tx arg")
-	err = cmd.init(fake.NewSnapshot(), makeStep(t, signer, InitBidLengthArg, bid_length))
-	require.EqualError(t, err, "'value:initRevealLength' not found in tx arg")
 
 	// Correct init
 	snap := fake.NewSnapshot()
-	step := makeStep(t, signer, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length)
+	step := makeStep(t, signer, InitBidLengthArg, bid_length)
 	err = cmd.init(snap, step)
 	require.NoError(t, err)
 
@@ -71,18 +68,6 @@ func TestCommand_Init(t *testing.T) {
 	val, err = snap.Get(key)
 	val_res = string(val)
 	require.Equal(t, bid_length, val_res)
-
-	// Check store for (auction:reveal_length)
-	key = []byte("auction:reveal_length")
-	val, err = snap.Get(key)
-	val_res = string(val)
-	require.Equal(t, reveal_length, val_res)
-
-	// Check store for (auction:bidders)
-	key = []byte("auction:bidders")
-	val, err = snap.Get(key)
-	val_res = string(val)
-	require.Equal(t, val_res, "")
 
 	// Check store for (auction:highest_bidder)
 	key = []byte("auction:highest_bidder")
