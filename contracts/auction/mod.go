@@ -63,7 +63,7 @@ const (
 	BidArg = "value:bid"
 	// BidDepositArg is the argument's name in the transaction that contains the
 	// Deposit for the bid.
-	BidDepositArg = "value:bid_deposit"
+	BidDepositArg = "value:bidDeposit"
 
 	// REVEAL
 	// RevealBidArg is the argument's name in the transaction that contains the
@@ -472,9 +472,16 @@ func (c auctionCommand) init(snap store.Snapshot, step execution.Step) error {
 // ############################# BID FUNCTIONS ################################
 // ############################################################################
 
+// Gets bid for a bidder
 func getBid(snap store.Snapshot, bidder []byte) ([]byte, error) {
-	// Get reveal bid from database
-	bidKey := []byte(fmt.Sprintf("%s:%s", string(bidder), BidKey))
+	// Get bidder number from database
+	bidderNumber, err := findRevealerNumber(snap, bidder)
+	if err != nil {
+		return []byte{}, xerrors.Errorf("failed to get bidder number", err)
+	}
+
+	// Get bid from database
+	bidKey := []byte(fmt.Sprintf("%s:%s:%s", "bid", "bid", fmt.Sprint(bidderNumber)))
 	bid, err := snap.Get(bidKey)
 	if err != nil {
 		return []byte{}, xerrors.Errorf("failed to get bid", err)
@@ -484,10 +491,28 @@ func getBid(snap store.Snapshot, bidder []byte) ([]byte, error) {
 }
 
 // storeBid stores a bid from a bidder
+// bid:pk:bid# = pk
+// bid:bid:bid# = bid
 func storeBid(snap store.Snapshot, bidder []byte, bid []byte) error {
-	key := []byte(fmt.Sprintf("%s:%s", string(bidder), "bid"))
-	val := bid
-	err := snap.Set(key, val)
+	fmt.Println("INSIDE STORE BID")
+	fmt.Println("Bidder: ", string(bidder))
+
+	// block number used for storing bids
+	blockNumber, err := getBlockNumber(snap)
+	if err != nil {
+		return xerrors.Errorf("failed to get block number", err)
+	}
+
+	key := []byte(fmt.Sprintf("%s:%s:%s", "bid", "pk", fmt.Sprint(blockNumber)))
+	val := bidder
+	err = snap.Set(key, val)
+	if err != nil {
+		return xerrors.Errorf("failed to set bidder: %v", err)
+	}
+
+	key = []byte(fmt.Sprintf("%s:%s:%s", "bid", "bid", fmt.Sprint(blockNumber)))
+	val = bid
+	err = snap.Set(key, val)
 	if err != nil {
 		return xerrors.Errorf("failed to set bid: %v", err)
 	}
@@ -497,8 +522,14 @@ func storeBid(snap store.Snapshot, bidder []byte, bid []byte) error {
 
 // getDeposit gets a deposit from a bidder
 func getDeposit(snap store.Snapshot, pk []byte) ([]byte, error) {
+	// Get bidder number from database
+	bidderNumber, err := findRevealerNumber(snap, pk)
+	if err != nil {
+		return []byte{}, xerrors.Errorf("failed to get bidder number", err)
+	}
+
 	// Get deposit from database
-	depositKey := []byte(fmt.Sprintf("%s:%s", string(pk), DepositKey))
+	depositKey := []byte(fmt.Sprintf("%s:%s:%s", "bid", "deposit", fmt.Sprint(bidderNumber)))
 	deposit, err := snap.Get(depositKey)
 	if err != nil {
 		return []byte{}, xerrors.Errorf("failed to get deposit", err)
@@ -508,10 +539,17 @@ func getDeposit(snap store.Snapshot, pk []byte) ([]byte, error) {
 }
 
 // storeDeposit stores a deposit from a bidder
+// bid:deposit:bid# = deposit
 func storeDeposit(snap store.Snapshot, bidder []byte, deposit []byte) error {
-	key := []byte(fmt.Sprintf("%s:%s", string(bidder), "deposit"))
+	// block number used for storing bids
+	blockNumber, err := getBlockNumber(snap)
+	if err != nil {
+		return xerrors.Errorf("failed to get block number", err)
+	}
+
+	key := []byte(fmt.Sprintf("%s:%s:%s", "bid", "deposit", fmt.Sprint(blockNumber)))
 	val := deposit
-	err := snap.Set(key, val)
+	err = snap.Set(key, val)
 	if err != nil {
 		return xerrors.Errorf("failed to set deposit: %v", err)
 	}
@@ -569,6 +607,8 @@ func (c auctionCommand) bid(snap store.Snapshot, step execution.Step) error {
 	if err != nil {
 		return xerrors.Errorf("public key not found in tx argument")
 	}
+	fmt.Println("INSIDE BID")
+	fmt.Println("Pub Key: ", string(pub_key))
 
 	// Check bid/deposit from auctionCommand
 	bid := step.Current.GetArg(BidArg)
@@ -618,18 +658,40 @@ func (c auctionCommand) bid(snap store.Snapshot, step execution.Step) error {
 // ########################### REVEAL FUNCTIONS ###############################
 // ############################################################################
 
+func findRevealerNumber(snap store.Snapshot, revealer []byte) (int, error) {
+	bidders, err := getBiddersList(snap)
+	if err != nil {
+		return -1, xerrors.Errorf("failed to get bidders list: %v", err)
+	}
+
+	revealerString := string(revealer)
+	for i := range bidders {
+		if bidders[i] == revealerString {
+			return i, nil
+		}
+	}
+
+	return -1, xerrors.Errorf("Revealer did not make a bid")
+}
+
 // storeBid stores a bid from a bidder
 func storeReveal(snap store.Snapshot, revealer []byte, bid []byte, nonce []byte) error {
-	// Set reveal:bid value
-	key := []byte(fmt.Sprintf("%s:%s", string(revealer), RevealBidKey))
+	// Determine revealerNumber
+	revealerNumber, err := findRevealerNumber(snap, revealer)
+	if err != nil {
+		return xerrors.Errorf("Could not find revealer number", err)
+	}
+
+	// Set reveal:bid:revealerNumber value
+	key := []byte(fmt.Sprintf("%s:%s:%s", "reveal", "bid", fmt.Sprint(revealerNumber)))
 	val := bid
-	err := snap.Set(key, val)
+	err = snap.Set(key, val)
 	if err != nil {
 		return xerrors.Errorf("failed to set revealBid value: %v", err)
 	}
 
-	// Set reveal:nonce value
-	key = []byte(fmt.Sprintf("%s:%s", string(revealer), RevealNonceKey))
+	// Set reveal:nonce:revealerNumber value
+	key = []byte(fmt.Sprintf("%s:%s:%s", "reveal", "nonce", fmt.Sprint(revealerNumber)))
 	val = nonce
 	err = snap.Set(key, val)
 	if err != nil {
@@ -659,14 +721,20 @@ func storeRevealer(snap store.Snapshot, revealer []byte) error {
 }
 
 func getReveal(snap store.Snapshot, revealer []byte) ([]byte, []byte, error) {
+	// Get revealer number from bidders list
+	revealerNumber, err := findRevealerNumber(snap, revealer)
+	if err != nil {
+		return []byte{}, []byte{}, xerrors.Errorf("failed to get revealer number", err)
+	}
+
 	// Get reveal bid from database
-	revealBidKey := []byte(fmt.Sprintf("%s:%s", string(revealer), RevealBidKey))
+	revealBidKey := []byte(fmt.Sprintf("%s:%s:%s", "reveal", "bid", fmt.Sprint(revealerNumber)))
 	revealBid, err := snap.Get(revealBidKey)
 	if err != nil {
 		return []byte{}, []byte{}, xerrors.Errorf("failed to get reveal bid", err)
 	}
 	// Get reveal nonce from database
-	revealNonceKey := []byte(fmt.Sprintf("%s:%s", string(revealer), RevealNonceKey))
+	revealNonceKey := []byte(fmt.Sprintf("%s:%s:%s", "reveal", "nonce", fmt.Sprint(revealerNumber)))
 	revealNonce, err := snap.Get(revealNonceKey)
 	if err != nil {
 		return []byte{}, []byte{}, xerrors.Errorf("failed to get reveal nonce", err)
@@ -694,6 +762,14 @@ func getRevealersList(snap store.Snapshot) ([]string, error) {
 // Hash(Bid, Nonce) = Bid
 // Deposit >= Bid
 func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid []byte, revealNonce []byte) (bool, error) {
+	// Check that revealer made a bid
+	_, err := findRevealerNumber(snap, pk)
+	if err != nil {
+		return false, xerrors.Errorf("Revealer did not make a bid: %v", err)
+	}
+	fmt.Println("INSIDE IS VALID REVEAL")
+	fmt.Println("After find revealer number")
+
 	// 1. Compare bid to Hash(RevealBid, RevealNonce)
 	revealHash, err := c.HashReveal(revealBid, revealNonce)
 	if err != nil {
@@ -703,12 +779,14 @@ func (c auctionCommand) isValidReveal(snap store.Snapshot, pk []byte, revealBid 
 	if err != nil {
 		return false, xerrors.Errorf(("No bid from user '%s"), pk)
 	}
+	fmt.Println("Bid: ", bid)
+	fmt.Println("RevealHash: ", revealHash)
 	comparison := bytes.Compare(bid, revealHash)
 	if comparison != 0 {
 		return false, xerrors.Errorf("Bid does not match reveal hash")
 	}
 
-	// 2. Chek that deposit >= bid
+	// 2. Check that deposit >= bid
 	deposit, err := getDeposit(snap, pk)
 	if err != nil {
 		return false, xerrors.Errorf(("No deposit from user '%s"), pk)

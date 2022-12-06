@@ -81,18 +81,20 @@ func TestIntegration_Value_Simple(t *testing.T) {
 	_, err = rand.Read(key1)
 	require.NoError(t, err)
 
+	key := []byte("key")
+	value := []byte("verylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalueverylongvalue")
 	args = []txn.Arg{
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
-		{Key: "value:key", Value: key1},
-		{Key: "value:value", Value: []byte("value1")},
+		{Key: "value:key", Value: key},
+		{Key: "value:value", Value: value},
 		{Key: "value:command", Value: []byte("WRITE")},
 	}
 	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
 	require.NoError(t, err)
 
-	proof, err := nodes[0].GetOrdering().GetProof(key1)
+	proof, err := nodes[0].GetOrdering().GetProof(key)
 	require.NoError(t, err)
-	require.Equal(t, []byte("value1"), proof.GetValue())
+	require.Equal(t, value, proof.GetValue())
 
 	key2 := make([]byte, 32)
 

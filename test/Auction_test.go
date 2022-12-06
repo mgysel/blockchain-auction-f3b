@@ -15,8 +15,10 @@ import (
 	auctionContract "go.dedis.ch/dela/contracts/auction"
 	"go.dedis.ch/dela/core/txn"
 	"go.dedis.ch/dela/core/txn/signed"
+	"go.dedis.ch/dela/crypto"
 	"go.dedis.ch/dela/crypto/bls"
 	"go.dedis.ch/dela/crypto/loader"
+	"golang.org/x/xerrors"
 )
 
 func init() {
@@ -24,7 +26,7 @@ func init() {
 }
 
 // Start 3 nodes
-// Use the value contract
+// Use the auction contract
 // Check the state
 func TestIntegration_Auction_Simple(t *testing.T) {
 	dir, err := os.MkdirTemp(os.TempDir(), "dela-integration-test")
@@ -63,8 +65,15 @@ func TestIntegration_Auction_Simple(t *testing.T) {
 	manager := signed.NewManager(signer, &txClient{})
 
 	pubKeyBuf, err := signer.GetPublicKey().MarshalBinary()
+	fmt.Println("PUB KEY BUF: ")
+	fmt.Println(len(pubKeyBuf))
+	fmt.Println(pubKeyBuf)
+	pubKeyByte, err := signer.GetPublicKey().MarshalText()
+	pubKeyString := string(pubKeyByte)
+	fmt.Println("PUB KEY: ", pubKey)
 	require.NoError(t, err)
 
+	// Giving access to value contract
 	args := []txn.Arg{
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
 		{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
@@ -75,8 +84,8 @@ func TestIntegration_Auction_Simple(t *testing.T) {
 	}
 	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
 	require.NoError(t, err)
-	fmt.Println("AUCTION CONTRACT NAME")
-	fmt.Println(auctionContract.ContractName)
+
+	// Giving access to auction contract
 	args = []txn.Arg{
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
 		{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
@@ -87,62 +96,119 @@ func TestIntegration_Auction_Simple(t *testing.T) {
 	}
 	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
 	require.NoError(t, err)
-	// args := []txn.Arg{
-	// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
-	// 	{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
-	// 	{Key: "access:grant_contract", Value: []byte(auctionContract.ContractName)},
-	// 	{Key: "access:grant_command", Value: []byte("all")},
-	// 	{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
-	// 	{Key: "access:command", Value: []byte("GRANT")},
-	// }
-	// err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
-	// require.NoError(t, err)
 
-	key1 := make([]byte, 32)
-
-	_, err = rand.Read(key1)
-	require.NoError(t, err)
-
-	// args = []txn.Arg{
-	// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
-	// 	{Key: "value:key", Value: key1},
-	// 	{Key: "value:value", Value: []byte("value1")},
-	// 	{Key: "value:command", Value: []byte("WRITE")},
-	// }
-	// INIT COMMAND
+	// AUCTION INIT COMMAND
 	// Bid length = 2, Reveal length = 2
-	initBidKey := []byte("auction:bid_length")
-	initRevealKey := []byte("auction:reveal_length")
+	bidLength := []byte("1")
+	revealLength := []byte("1")
 	args = []txn.Arg{
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
-		{Key: "value:initBidLength", Value: []byte("2")},
-		{Key: "value:initRevealLength", Value: []byte("2")},
+		{Key: "value:initBidLength", Value: bidLength},
+		{Key: "value:initRevealLength", Value: revealLength},
 		{Key: "value:command", Value: []byte("INIT")},
 	}
 	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
 	require.NoError(t, err)
 
 	// Check Bid Key set correctly
+	initBidKey := []byte("auction:bid_length")
 	proof, err := nodes[0].GetOrdering().GetProof(initBidKey)
 	require.NoError(t, err)
-	require.Equal(t, []byte("2"), proof.GetValue())
+	require.Equal(t, bidLength, proof.GetValue())
 
 	// Check Reveal Key set correctly
+	initRevealKey := []byte("auction:reveal_length")
 	proof, err = nodes[0].GetOrdering().GetProof(initRevealKey)
 	require.NoError(t, err)
-	require.Equal(t, []byte("2"), proof.GetValue())
+	require.Equal(t, revealLength, proof.GetValue())
 
-	// key2 := make([]byte, 32)
+	// BID COMMAND
+	// Create and hash bid/nonce
+	bidBid := []byte("2")
+	bidNonce := []byte("Nonce")
+	bid, err := hashReveal(bidBid, bidNonce)
+	require.NoError(t, err)
+	bidDeposit := []byte("2")
+	args = []txn.Arg{
+		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
+		{Key: "value:bid", Value: bid},
+		{Key: "value:bidDeposit", Value: bidDeposit},
+		{Key: "value:command", Value: []byte("BID")},
+	}
+	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
+	require.NoError(t, err)
 
-	// _, err = rand.Read(key2)
-	// require.NoError(t, err)
+	// Check Bid PK set correctly
+	key := []byte(fmt.Sprintf("bid:pk:0"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, pubKeyString, string(proof.GetValue()))
 
-	// args = []txn.Arg{
-	// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
-	// 	{Key: "value:key", Value: key2},
-	// 	{Key: "value:value", Value: []byte("value2")},
-	// 	{Key: "value:command", Value: []byte("WRITE")},
-	// }
-	// err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
-	// require.NoError(t, err)
+	// Check Bid set correctly
+	key = []byte(fmt.Sprintf("bid:bid:0"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, bid, proof.GetValue())
+
+	// REVEAL COMMAND
+	// Create and hash bid/nonce
+	revealBid := []byte("2")
+	revealNonce := []byte("Nonce")
+	args = []txn.Arg{
+		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
+		{Key: "value:revealBid", Value: revealBid},
+		{Key: "value:revealNonce", Value: revealNonce},
+		{Key: "value:command", Value: []byte("REVEAL")},
+	}
+	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
+	require.NoError(t, err)
+
+	// Check Reveal Bid set correctly
+	key = []byte(fmt.Sprintf("reveal:bid:0"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, revealBid, proof.GetValue())
+
+	// Check Reveal Nonce set correctly
+	key = []byte(fmt.Sprintf("reveal:nonce:0"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, revealNonce, proof.GetValue())
+
+	// SELECTWINNER COMMAND
+	// Create and hash bid/nonce
+	args = []txn.Arg{
+		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
+		{Key: "value:command", Value: []byte("SELECTWINNER")},
+	}
+	err = addAndWait(t, timeout, manager, nodes[0].(cosiDelaNode), args...)
+	require.NoError(t, err)
+
+	// Check Highest Bidder set correctly
+	key = []byte(fmt.Sprintf("auction:highest_bidder"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, pubKeyByte, proof.GetValue())
+
+	// Check Highest Bid set correctly
+	key = []byte(fmt.Sprintf("auction:highest_bid"))
+	proof, err = nodes[0].GetOrdering().GetProof(key)
+	require.NoError(t, err)
+	require.Equal(t, revealBid, proof.GetValue())
+}
+
+// Helper functions
+
+// Hashes a bid and nonce
+func hashReveal(revealBid []byte, revealNonce []byte) ([]byte, error) {
+	reveal := []byte(fmt.Sprintf("%v;%v", string(revealBid), string(revealNonce)))
+
+	hashFactory := crypto.NewSha256Factory()
+	h := hashFactory.New()
+	_, err := h.Write(reveal)
+	if err != nil {
+		return nil, xerrors.Errorf("leaf node failed: %v", err)
+	}
+
+	return h.Sum(nil), nil
 }

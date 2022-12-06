@@ -95,7 +95,10 @@ func TestCommand_Init(t *testing.T) {
 
 func TestCommand_Bid(t *testing.T) {
 	contract := NewContract([]byte{}, fakeAccess{})
-	signer := fake.NewSigner()
+	signer := bls.NewSigner()
+	signerText, err := signer.GetPublicKey().MarshalText()
+	fmt.Println("INSIDE BID TEST")
+	fmt.Println("signer: ", string(signerText))
 
 	cmd := auctionCommand{
 		Contract: &contract,
@@ -106,7 +109,7 @@ func TestCommand_Bid(t *testing.T) {
 	reveal_length := "2"
 	snap := fake.NewSnapshot()
 	step := makeStep(t, signer, InitBidLengthArg, bid_length, InitRevealLengthArg, reveal_length)
-	err := cmd.init(snap, step)
+	err = cmd.init(snap, step)
 
 	// Bid Deposit, Hash(Bid, Nonce) with no error
 	bidDeposit := "1"
@@ -117,14 +120,14 @@ func TestCommand_Bid(t *testing.T) {
 	step = makeStep(t, signer, BidArg, bid, BidDepositArg, bidDeposit)
 	err = cmd.bid(snap, step)
 	require.NoError(t, err)
-	// Check store for (pub_key:bid, Hash(Bid, Nonce))
+	// Check store for (bid:bid:0, Hash(Bid, Nonce))
 	pub_key, err := step.Current.GetIdentity().MarshalText()
-	key := []byte(fmt.Sprintf("%s:%s", string(pub_key), "bid"))
+	key := []byte(fmt.Sprintf("%s:%s:%s", "bid", "bid", "0"))
 	bidResByte, err := snap.Get(key)
 	bidRes := string(bidResByte)
 	require.Equal(t, bid, bidRes)
-	// Check store for (pub_key:deposit, deposit)
-	key = []byte(fmt.Sprintf("%s:%s", string(pub_key), "deposit"))
+	// Check store for (bid:deposit:0, deposit)
+	key = []byte(fmt.Sprintf("%s:%s:%s", "bid", "deposit", "0"))
 	bidDepositResByte, err := snap.Get(key)
 	bidDepositRes := string(bidDepositResByte)
 	require.Equal(t, bidDeposit, bidDepositRes)
@@ -244,7 +247,7 @@ func TestCommand_RevealOneBid(t *testing.T) {
 	// Check Reveal Storage
 	err = cmd.reveal(snap, step)
 	require.NoError(t, err)
-	key := []byte(fmt.Sprintf("%s:%s", string(pub_key), "reveal:bid"))
+	key := []byte(fmt.Sprintf("reveal:bid:0"))
 	val, err := snap.Get(key)
 	revealBidRes := string(val)
 	// t.Log(string(bid_res))
@@ -298,8 +301,7 @@ func TestCommand_RevealMultipleBids(t *testing.T) {
 	err = cmd.reveal(snap, step)
 	require.NoError(t, err)
 	// Check store for (pub_key:reveal:bid, bid)
-	pk_one, err := step.Current.GetIdentity().MarshalText()
-	key := []byte(fmt.Sprintf("%s:%s", string(pk_one), "reveal:bid"))
+	key := []byte(fmt.Sprintf("reveal:bid:0"))
 	val, err := snap.Get(key)
 	revealBidRes := string(val)
 	require.Equal(t, revealBid, revealBidRes)
@@ -312,8 +314,7 @@ func TestCommand_RevealMultipleBids(t *testing.T) {
 	err = cmd.reveal(snap, step)
 	require.NoError(t, err)
 	// Check store for (pub_key:reveal:bid, bid)
-	pk_two, err := step.Current.GetIdentity().MarshalText()
-	key = []byte(fmt.Sprintf("%s:%s", string(pk_two), "reveal:bid"))
+	key = []byte(fmt.Sprintf("reveal:bid:1"))
 	val, err = snap.Get(key)
 	revealBidRes = string(val)
 	require.Equal(t, revealBid, revealBidRes)
