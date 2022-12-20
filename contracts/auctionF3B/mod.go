@@ -430,6 +430,8 @@ func storeBid(snap store.Snapshot, bidder []byte, bid []byte) error {
 // Compares a bid to the highest bid
 // Returns true if this bid is higher than the highest bid, false otherwise
 func isHighestBidder(snap store.Snapshot, bid []byte) (bool, error) {
+	fmt.Println("INSIDE isHighestBidder")
+
 	// Get highestBid in integer format
 	highestBidBytes, err := getHighestBid(snap)
 	if err != nil {
@@ -446,6 +448,9 @@ func isHighestBidder(snap store.Snapshot, bid []byte) (bool, error) {
 		xerrors.Errorf("failed to convert bid to int: %v", err)
 	}
 
+	fmt.Println("Highest Bid: %d", highestBid)
+	fmt.Println("This Bid: %d", thisBid)
+
 	// If this bid is greater than the highest bid, return true
 	if thisBid > highestBid {
 		return true, nil
@@ -459,12 +464,15 @@ func isHighestBidder(snap store.Snapshot, bid []byte) (bool, error) {
 // 2. If highest bidder, updates bid and returns deposit of old bidder
 // 3. If not highest bidder, returns deposit
 func handleNewBid(snap store.Snapshot, bid []byte, pk []byte) error {
+	fmt.Println("INSIDE HandleNewBid")
+	fmt.Println("Bid: ", string(bid))
 	isHighest, err := isHighestBidder(snap, bid)
 	if err != nil {
 		return xerrors.Errorf("Cannot determine highest bidder: %s", err)
 	}
 
 	if isHighest {
+		fmt.Println("is highest bidder")
 		// Get old highest bidder
 		oldHighestBidder, err := getHighestBidder(snap)
 		if err != nil {
@@ -487,19 +495,18 @@ func handleNewBid(snap store.Snapshot, bid []byte, pk []byte) error {
 		// TODO: Return deposit of old highest bidder
 		// Send tx to oldHighestBidder with oldHighestBid
 		fmt.Println("Return deposit of old highest bidder")
-		fmt.Println("Old highest bidder: ", oldHighestBidder)
-		fmt.Println("Old highest bid: ", oldHighestBid)
+		fmt.Println("Old highest bidder: ", string(oldHighestBidder))
+		fmt.Println("Old highest bid: ", string(oldHighestBid))
 
 		return nil
 	} else {
+		fmt.Println("is not highest bidder")
 		// TODO: Return deposit of this bidder
 		fmt.Println("Return deposit of this bidder")
 		fmt.Println("This bidder: ", string(pk))
 		fmt.Println("This bid: ", string(bid))
 		return nil
 	}
-
-	return nil
 }
 
 // bid implements commands. It performs the BID command

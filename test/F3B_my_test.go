@@ -157,20 +157,64 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
 			{Key: "access:command", Value: []byte("GRANT")},
 		}
-
 		// waiting for the confirmation of the transaction
 		err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
 		require.NoError(t, err)
 
-		// MINE: sending the auction contract grant transaction to the blockchain
+		// // Giving access to auction contract
+		// args = []txn.Arg{
+		// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
+		// 	{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
+		// 	{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.Auction")},
+		// 	{Key: "access:grant_command", Value: []byte("all")},
+		// 	{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
+		// 	{Key: "access:command", Value: []byte("GRANT")},
+		// }
+		// err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		// require.NoError(t, err)
+
+		// Giving access to auctionF3B contract
 		args = []txn.Arg{
 			{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Access")},
 			{Key: "access:grant_id", Value: []byte(hex.EncodeToString(valueAccessKey[:]))},
-			{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.Auction")},
+			{Key: "access:grant_contract", Value: []byte("go.dedis.ch/dela.AuctionF3B")},
 			{Key: "access:grant_command", Value: []byte("all")},
 			{Key: "access:identity", Value: []byte(base64.StdEncoding.EncodeToString(pubKeyBuf))},
 			{Key: "access:command", Value: []byte("GRANT")},
 		}
+		err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		require.NoError(t, err)
+
+		// AUCTION INIT COMMAND
+		// Bid length = 3
+		bidLength := []byte("3")
+		args = []txn.Arg{
+			{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.AuctionF3B")},
+			{Key: "value:initBidLength", Value: bidLength},
+			{Key: "value:command", Value: []byte("INIT")},
+		}
+		err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		require.NoError(t, err)
+		// Check Bid Length set correctly
+		initBidKey := []byte("auction:bid_length")
+		proof, err := nodes[0].GetOrdering().GetProof(initBidKey)
+		require.NoError(t, err)
+		require.Equal(t, bidLength, proof.GetValue())
+
+		// Test Bid
+		bid := []byte("1")
+		args = []txn.Arg{
+			{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.AuctionF3B")},
+			{Key: "value:bid", Value: bid},
+			{Key: "value:command", Value: []byte("BID")},
+		}
+		err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		require.NoError(t, err)
+		// Check Highest Bid set correctly
+		highestBidKey := []byte("auction:highest_bid")
+		proof, err = nodes[0].GetOrdering().GetProof(highestBidKey)
+		require.NoError(t, err)
+		require.Equal(t, string(bid), string(proof.GetValue()))
 
 		// creating GBar. we need a generator in order to follow the encryption and
 		// decryption protocol of https://arxiv.org/pdf/2205.08529.pdf / we take an
@@ -193,6 +237,7 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 		var ciphertexts []types.Ciphertext
 
 		// generate random messages to be encrypted
+		// NOTE: These are the symmetric keys to be encrypted
 		fmt.Println("Generate random messages to be encrypted")
 		keys := make([][29]byte, batchSize)
 		for i := range keys {
@@ -200,11 +245,24 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			require.NoError(t, err)
 		}
 
+		// TODO: Create bid tx
+		bid = []byte("2")
+		args = []txn.Arg{
+			{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.AuctionF3B")},
+			{Key: "value:bid", Value: bid},
+			{Key: "value:command", Value: []byte("BID")},
+		}
+
+		// TODO: Encrypt bid tx with symmetric key
+
 		start = time.Now()
 
 		// Create a Write instance
 		for i := 0; i < batchSize; i++ {
-			// Encrypting the symmetric key
+			t.Log("INSIDE Write Instance")
+			t.Log("I: ", i)
+
+			// Encrypting the symmetric key with PKsmc
 			ciphertext, remainder, err := actors[0].VerifiableEncrypt(keys[i][:], gBar)
 			require.NoError(t, err)
 			require.Len(t, remainder, 0)
@@ -224,24 +282,31 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			require.NoError(t, err)
 
 			// put all the data together
+			// NOTE: Ck is the encrypted symmetric key
 			Ck := append(Cbytes[:], Ubytes[:]...)
 			Ck = append(Ck, Ubarbytes[:]...)
 			Ck = append(Ck, Ebytes[:]...)
 			Ck = append(Ck, Fbytes[:]...)
 
-			// creating the transaction and write the data
+			// creating the transaction to write Ck
 			argSlice[i] = []txn.Arg{
 				{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
-				{Key: "value:key", Value: []byte("key")},
-
+				{Key: "value:key", Value: []byte("key1")},
 				{Key: "value:value", Value: Ck},
 				{Key: "value:command", Value: []byte("WRITE")},
 			}
+
+			// TODO: create the transaction to write the encrypted transaction
 
 			// we read the recorded data on the blockchain and make sure that
 			// the data was submitted correctly
 			err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), argSlice[i]...)
 			require.NoError(t, err)
+
+			// Make sure value tx correct
+			proof, err := nodes[0].GetOrdering().GetProof([]byte("key1"))
+			require.NoError(t, err)
+			require.Equal(t, Ck, proof.GetValue())
 		}
 
 		submitTime := time.Since(start)
@@ -262,6 +327,17 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 		for i := 0; i < batchSize; i++ {
 			require.Equal(t, keys[i][:], decrypted[i])
 		}
+
+		// TODO: Get the bid transactions, decrypt them, and submit to bid auction
+
+		// SELECTWINNER COMMAND
+		// Create and hash bid/nonce
+		// args = []txn.Arg{
+		// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
+		// 	{Key: "value:command", Value: []byte("SELECTWINNER")},
+		// }
+		// err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		// require.NoError(t, err)
 
 		fmt.Println("Setup,\tSubmit,\tDecrypt")
 		fmt.Printf("%d,\t%d,\t%d\n", setupTime.Milliseconds(), submitTime.Milliseconds(), decryptTime.Milliseconds())

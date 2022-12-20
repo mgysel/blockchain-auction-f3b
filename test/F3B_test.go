@@ -40,9 +40,9 @@ func init() {
 	rand.Seed(0)
 }
 
-func Test_F3B(t *testing.T) {
-	batchSizes := []int{1}
-	numDKGs := []int{3, 10, 20, 30, 50, 70, 100}
+func Test_F3B_Original(t *testing.T) {
+	batchSizes := []int{2}
+	numDKGs := []int{3}
 	// numDKGs := []int{3}
 	withGrpc := false
 
@@ -175,7 +175,6 @@ func f3bScenario(batchSize, numDKG, numNodes int, withGrpc bool) func(t *testing
 		var ciphertexts []types.Ciphertext
 
 		// generate random messages to be encrypted
-		fmt.Println("Generate random messages to be encrypted")
 		keys := make([][29]byte, batchSize)
 		for i := range keys {
 			_, err = rand.Read(keys[i][:])
@@ -212,10 +211,10 @@ func f3bScenario(batchSize, numDKG, numNodes int, withGrpc bool) func(t *testing
 			Ck = append(Ck, Fbytes[:]...)
 
 			// creating the transaction and write the data
+			// NOTE: This is writing the encrypted symmetric key
 			argSlice[i] = []txn.Arg{
 				{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
 				{Key: "value:key", Value: []byte("key")},
-
 				{Key: "value:value", Value: Ck},
 				{Key: "value:command", Value: []byte("WRITE")},
 			}
@@ -224,6 +223,11 @@ func f3bScenario(batchSize, numDKG, numNodes int, withGrpc bool) func(t *testing
 			// the data was submitted correctly
 			err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), argSlice[i]...)
 			require.NoError(t, err)
+
+			// Make sure value tx correct
+			proof, err := nodes[0].GetOrdering().GetProof([]byte("key"))
+			require.NoError(t, err)
+			require.Equal(t, Ck, proof.GetValue())
 		}
 
 		submitTime := time.Since(start)

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	accessContract "go.dedis.ch/dela/contracts/access"
 	"go.dedis.ch/dela/contracts/auction"
+	"go.dedis.ch/dela/contracts/auctionF3B"
 	"go.dedis.ch/dela/contracts/value"
 	"go.dedis.ch/dela/core/access"
 	"go.dedis.ch/dela/core/access/darc"
@@ -132,6 +133,7 @@ func newDelaNode(t *testing.T, path string, port int) dela {
 	// Same key used for both, so have to grant twice
 	value.RegisterContract(exec, value.NewContract(valueAccessKey[:], accessService))
 	auction.RegisterContract(exec, auction.NewContract(valueAccessKey[:], accessService))
+	auctionF3B.RegisterContract(exec, auctionF3B.NewContract(valueAccessKey[:], accessService))
 
 	txFac := signed.NewTransactionFactory()
 	vs := simple.NewService(exec, txFac)

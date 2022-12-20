@@ -168,7 +168,7 @@ func TestCommand_Multiple_Bidders(t *testing.T) {
 	require.NoError(t, err)
 
 	// Highest Bidder and Bid should be second bidder
-	// Check store for (auction:highest_bid, 1)
+	// Check store for (auction:highest_bid, 2)
 	key := []byte("auction:highest_bid")
 	bidResByte, err := snap.Get(key)
 	bidRes := string(bidResByte)

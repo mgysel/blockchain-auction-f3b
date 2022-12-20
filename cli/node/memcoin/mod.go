@@ -34,6 +34,7 @@ import (
 	"go.dedis.ch/dela/cli/node"
 	access "go.dedis.ch/dela/contracts/access/controller"
 	auction "go.dedis.ch/dela/contracts/auction/controller"
+	auctionF3B "go.dedis.ch/dela/contracts/auctionF3B/controller"
 	cosipbft "go.dedis.ch/dela/core/ordering/cosipbft/controller"
 	db "go.dedis.ch/dela/core/store/kv/controller"
 	pool "go.dedis.ch/dela/core/txn/pool/controller"
@@ -58,6 +59,8 @@ type config struct {
 	Writer  io.Writer
 }
 
+// Creating controllers
+// NOTE: Must include auctions SCs here
 func runWithCfg(args []string, cfg config) error {
 	builder := node.NewBuilderWithCfg(
 		cfg.Channel,
@@ -70,6 +73,7 @@ func runWithCfg(args []string, cfg config) error {
 		access.NewController(),
 		proxy.NewController(),
 		auction.NewController(),
+		auctionF3B.NewController(),
 	)
 
 	app := builder.Build()
