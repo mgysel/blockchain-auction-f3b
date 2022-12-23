@@ -245,6 +245,29 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			require.NoError(t, err)
 		}
 
+		// PRINT KEYS
+		fmt.Println("PRINTING KEYS")
+		for i := range keys {
+			fmt.Println("Key: ", keys[i][:])
+		}
+		// Encrypt message with keys
+		fmt.Println("SYMMETRIC ENCRYPTION OF MESSAGE USING KEYS")
+		pt := []byte("Plain Text!")
+		key := getAESKey(keys[0])
+		ct := symmetricEncrypt(pt, key)
+		dct := symmetricDecrypt(ct, key)
+		require.Equal(t, dct, pt)
+
+		// // TODO: Encrypt bid tx with symmetric key
+		// pt = []byte("Plain Text")
+		// key := []byte("passphrasewhichneedstobe32bytes!")
+		// fmt.Println("pt: ", pt)
+		// ct = symmetricEncrypt(pt, key)
+		// fmt.Println("Encrypted Message: ", ct)
+		// dct = symmetricDecrypt(ct, key)
+		// fmt.Println("dct: ", dct)
+		// require.Equal(t, dct, pt)
+
 		// TODO: Create bid tx
 		bid = []byte("2")
 		args = []txn.Arg{
@@ -252,8 +275,6 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			{Key: "value:bid", Value: bid},
 			{Key: "value:command", Value: []byte("BID")},
 		}
-
-		// TODO: Encrypt bid tx with symmetric key
 
 		start = time.Now()
 
