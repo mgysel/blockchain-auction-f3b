@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,7 +25,6 @@ import (
 	"go.dedis.ch/dela/dkg"
 	"go.dedis.ch/dela/dkg/pedersen"
 	"go.dedis.ch/dela/dkg/pedersen/types"
-	"go.dedis.ch/dela/internal/testing/fake"
 	"go.dedis.ch/dela/serde/json"
 	"golang.org/x/xerrors"
 
@@ -48,7 +48,7 @@ func Test_F3B_Mine(t *testing.T) {
 	// batch size => the number of scenarios we run
 	// numDKGs => smc size
 	// numNodes => number of DELA nodes
-	batchSizes := []int{2}
+	batchSizes := []int{3}
 	// numDKGs := []int{3, 10, 20, 30, 50, 70, 100}
 	numDKGs := []int{3}
 	withGrpc := false
@@ -140,6 +140,7 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 		require.NoError(t, err)
 
 		signer, err := bls.NewSignerFromBytes(signerdata)
+		// signer2, err := bls.NewSignerFromBytes(signerdata)
 		require.NoError(t, err)
 
 		pubKey := signer.GetPublicKey()
@@ -150,6 +151,7 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 		}
 
 		manager := signed.NewManager(signer, &txClient{})
+		// manager := signed.NewManager(signer, &txClient{nonce: 5})
 
 		pubKeyBuf, err := signer.GetPublicKey().MarshalBinary()
 		require.NoError(t, err)
@@ -225,49 +227,6 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			require.NoError(t, err)
 		}
 
-		// // TODO: Encrypt bid tx with symmetric key
-		// pt = []byte("Plain Text")
-		// key := []byte("passphrasewhichneedstobe32bytes!")
-		// fmt.Println("pt: ", pt)
-		// ct = symmetricEncrypt(pt, key)
-		// fmt.Println("Encrypted Message: ", ct)
-		// dct = symmetricDecrypt(ct, key)
-		// fmt.Println("dct: ", dct)
-		// require.Equal(t, dct, pt)
-
-		// // TODO: Check TX Encrypt and Decrypt
-		// thisTX := getTX(t, manager, args...)
-		// // thisTXSerialize, err := thisTX.Serialize(thisTX)
-		// cTX := symmetricEncrypt(thisTXSerialize, key)
-		// pTX := symmetricDecrypt(cTX, key)
-		// thisTXUnserialized, err := signed.NewTransactionFactory().TransactionOf(ctx, pTX)
-		// // thisTXUnserialized, err := signed.NewTransactionFactory().TransactionOf(ctx, thisTXSerialize)
-		// fmt.Println("**********************************************************")
-		// fmt.Println("***** This TX Serialized")
-		// fmt.Println(thisTX)
-		// fmt.Println("***** This TX UnSerialized")
-		// fmt.Println(thisTXUnserialized)
-		// fmt.Println("***** Error?")
-		// fmt.Println(err)
-		// fmt.Println("**********************************************************")
-
-		// ctx = json.NewContext()
-		// // thisTXByte2, err := thisTX.GetIdentity().MarshalText()
-		// thisTXByte, err = thisTX.Serialize(ctx)
-		// thisTXByteToTX, err = signed.NewTransactionFactory().Deserialize(ctx, thisTXByte)
-		// ct = symmetricEncrypt(thisTXByte, key)
-		// dct = symmetricDecrypt(ct, key)
-		// require.Equal(t, dct, thisTXByte)
-
-		// fmt.Println("**********************************************************")
-		// fmt.Println("***** This TX Serialized")
-		// fmt.Println(thisTX)
-		// fmt.Println("***** This TX Deserialized")
-		// fmt.Println(thisTXByteToTX)
-		// fmt.Println("**********************************************************")
-
-		// TODO: How to deserialize tx?
-
 		start = time.Now()
 
 		// Create a Write instance
@@ -317,12 +276,15 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 
 			// WRITE 2: Write encrypted bid TX
 			// Create encrypted Bid TX
-			bid := []byte(fmt.Sprint(i))
+			bid := []byte(fmt.Sprint(i + 1))
 			args = getBidArgs(bid)
-			etx := getEncryptedTX(t, manager, aesKey, args...)
+			nonce := uint64(3 + (batchSize * 2) + (i * 3) + 2)
+			etx := getEncryptedTX(t, nonce, signer, aesKey, args...)
+			// t *testing.T, nonce uint64, signer crypto.Signer, key []byte, args ...txn.Arg
 			thisEtxKey := []byte(fmt.Sprintf("etx:%s", fmt.Sprint(i)))
 			writeArgs := getWriteArgs(thisEtxKey, etx)
 			// Make sure value tx did not yield error
+			// err = addAndWait2(t, to, uint64(3+(2*i)+1), signer, manager, nodes[0].(cosiDelaNode), writeArgs...)
 			err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), writeArgs...)
 			require.NoError(t, err)
 			// Make sure value tx correct
@@ -363,10 +325,8 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 
 			// Decrypt TX
 			dtx := getDecryptedTX(etx, aesKey)
-			t.Log("dtx: ", dtx)
-			t.Log("dtx Nonce: ", dtx.GetNonce())
-			// t.Log("dtx Identity: ", dtx.GetIdentity().MarshalText)
-			// dtx.GetNonce()
+			// t.Log("dtx: ", dtx)
+			// t.Log("dtx Nonce: ", dtx.GetNonce())
 
 			// Submit TX
 			err = addAndWaitDecrypted(t, to, manager, nodes[0].(cosiDelaNode), dtx)
@@ -393,16 +353,11 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 			require.Equal(t, keys[i][:], decrypted[i])
 		}
 
-		// TODO: Get the bid transactions, decrypt them, and submit to bid auction
-
-		// SELECTWINNER COMMAND
-		// Create and hash bid/nonce
-		// args = []txn.Arg{
-		// 	{Key: "go.dedis.ch/dela.ContractArg", Value: []byte(auctionContract.ContractName)},
-		// 	{Key: "value:command", Value: []byte("SELECTWINNER")},
-		// }
-		// err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
-		// require.NoError(t, err)
+		// Check Winner
+		args = getSelectWinnerArgs()
+		err = addAndWait(t, to, manager, nodes[0].(cosiDelaNode), args...)
+		require.NoError(t, err)
+		require.Equal(t, strconv.Itoa(batchSize), string(proof.GetValue()))
 
 		fmt.Println("Setup,\tSubmit,\tDecrypt")
 		fmt.Printf("%d,\t%d,\t%d\n", setupTime.Milliseconds(), submitTime.Milliseconds(), decryptTime.Milliseconds())
@@ -412,33 +367,72 @@ func f3bScenario_Auction(batchSize, numDKG, numNodes int, withGrpc bool) func(t 
 // -----------------------------------------------------------------------------
 // Utility functions
 
-// func addAndWait(t *testing.T, to time.Duration, manager txn.Manager, node cosiDelaNode, args ...txn.Arg) error {
-func getTX(t *testing.T, manager txn.Manager, args ...txn.Arg) txn.Transaction {
-	// manager.Sync()
+// // func addAndWait(t *testing.T, to time.Duration, manager txn.Manager, node cosiDelaNode, args ...txn.Arg) error {
+// func getTX(t *testing.T, manager txn.Manager, args ...txn.Arg) txn.Transaction {
+// 	// manager.Sync()
 
-	tx, err := manager.Make(args...)
-	t.Log("*** Inside GetTX")
-	t.Log("TX: ")
+// 	tx, err := manager.Make(args...)
+// 	t.Log("*** Inside GetTX")
+// 	t.Log("TX: ")
+// 	require.NoError(t, err)
+
+// 	return tx
+// }
+
+// func makeTx(t *testing.T, nonce uint64, pk crypto.PublicKey, opts ...signed.TransactionOption) txn.Transaction {
+
+// 	opts = append([]signed.TransactionOption{signed.WithSignature(fake.Signature{})}, opts...)
+
+// 	tx, err := signed.NewTransaction(nonce, pk, opts...)
+// 	require.NoError(t, err)
+
+// 	return tx
+// }
+
+// func makeTx(t *testing.T, nonce uint64, signer crypto.Signer, args ...txn.Arg) txn.Transaction {
+// 	_, err := signer.GetPublicKey().MarshalBinary()
+// 	options := []signed.TransactionOption{}
+// 	for i := 0; i < len(args); i += 1 {
+// 		options = append(options, signed.WithArg(args[i].Key, args[i].Value))
+// 	}
+
+// 	tx, err := signed.NewTransaction(nonce, signer.GetPublicKey(), options...)
+// 	tx.Sign(signer)
+// 	require.NoError(t, err)
+
+// 	return tx
+// }
+
+func makeTX(t *testing.T, nonce uint64, signer crypto.Signer, args ...txn.Arg) txn.Transaction {
+	_, err := signer.GetPublicKey().MarshalBinary()
+	options := []signed.TransactionOption{}
+	for i := 0; i < len(args); i += 1 {
+		options = append(options, signed.WithArg(args[i].Key, args[i].Value))
+	}
+
+	tx, err := signed.NewTransaction(nonce, signer.GetPublicKey(), options...)
+	tx.Sign(signer)
 	require.NoError(t, err)
 
 	return tx
 }
 
-func makeTx(t *testing.T, nonce uint64, pk crypto.PublicKey, opts ...signed.TransactionOption) txn.Transaction {
+func getEncryptedTX(t *testing.T, nonce uint64, signer crypto.Signer, key []byte, args ...txn.Arg) []byte {
+	t.Log("*** Inside getEncryptedTX")
+	t.Log("Nonce: ", nonce)
 
-	opts = append([]signed.TransactionOption{signed.WithSignature(fake.Signature{})}, opts...)
+	// Create new manager with a specific nonce
+	// manager := signed.NewManager(signer, exampleClient{nonce: nonce})
+	// manager := signed.NewManager(signer, &txClient{nonce: nonce})
 
-	tx, err := signed.NewTransaction(nonce, pk, opts...)
-	require.NoError(t, err)
+	tx := makeTX(t, nonce, signer, args...)
+	// tx, err := manager.Make(args...)
+	// require.NoError(t, err)
+	t.Log("TX: ", tx)
+	t.Log("TX Nonce: ", tx.GetNonce())
 
-	return tx
-}
-
-func getEncryptedTX(t *testing.T, manager txn.Manager, key []byte, args ...txn.Arg) []byte {
-	t.Log("INSIDE GETENCRYPTED TX")
-	tx := getTX(t, manager, args...)
+	// tx := getTX(t, manager, args...)
 	// tx := makeTx(t, nonce, pk, )
-	t.Log("tx: ", tx.GetArg("value:"))
 	ctx := json.NewContext()
 	thisTXByte, _ := tx.Serialize(ctx)
 	ct := symmetricEncrypt(thisTXByte, key)
@@ -446,7 +440,68 @@ func getEncryptedTX(t *testing.T, manager txn.Manager, key []byte, args ...txn.A
 	return ct
 }
 
+// func getEncryptedTX(t *testing.T, nonce uint64, signer crypto.Signer, key []byte, args ...txn.Arg) []byte {
+// 	t.Log("INSIDE GETENCRYPTED TX")
+// 	// for i := 0; i < len(args)-1; i += 1 {
+// 	// 	t.Log("I: ", i)
+// 	// 	t.Log("ARG: ", args[i])
+// 	// 	t.Log("Key: ", args[i].Key)
+// 	// 	t.Log("Value: ", string(args[i].Value))
+// 	// }
+
+// 	_, err := signer.GetPublicKey().MarshalBinary()
+// 	options := []signed.TransactionOption{}
+// 	for i := 0; i < len(args); i += 1 {
+// 		options = append(options, signed.WithArg(args[i].Key, args[i].Value))
+// 	}
+
+// 	tx, err := signed.NewTransaction(nonce, signer.GetPublicKey(), options...)
+// 	t.Log("This TX: ", tx)
+// 	t.Log("This TX Nonce: ", tx.GetNonce())
+// 	t.Log("This TX Args: ", tx.GetArgs())
+// 	t.Log("This TX Arg: ", string(tx.GetArg("go.dedis.ch/dela.ContractArg")))
+// 	t.Log("This TX Arg: ", string(tx.GetArg("value:bid")))
+// 	t.Log("This TX Arg: ", string(tx.GetArg("value:command")))
+// 	require.NoError(t, err)
+
+// 	// format := serde.formatEngine.txFormat{}
+// 	// ctx := json.NewContext()
+// 	// ctx := fake.NewContext()
+
+// 	// tx := getTX(t, manager, args...)
+// 	// tx := makeTx(t, nonce, pk, )
+// 	thisTXByte, _ := tx.Serialize(json.NewContext())
+// 	t.Log("This TX Byte: ", string(thisTXByte))
+// 	ct := symmetricEncrypt(thisTXByte, key)
+// 	t.Log("This ct: ", ct)
+
+// 	dct := symmetricDecrypt(ct, key)
+// 	t.Log("This dct: ", string(dct))
+
+// 	return ct
+// }
+
+// func getEncryptedTX(t *testing.T, manager txn.Manager, key []byte, args ...txn.Arg) []byte {
+// 	t.Log("INSIDE GETENCRYPTED TX")
+// 	for i := 0; i < len(args)-1; i += 1 {
+// 		t.Log("I: ", i)
+// 		t.Log("ARG: ", args[i])
+// 		t.Log("Key: ", args[i].Key)
+// 		t.Log("Value: ", args[i].Value)
+// 	}
+
+// 	tx := getTX(t, manager, args...)
+// 	// tx := makeTx(t, nonce, pk, )
+// 	t.Log("tx: ", tx.GetArg("value:"))
+// 	ctx := json.NewContext()
+// 	thisTXByte, _ := tx.Serialize(ctx)
+// 	ct := symmetricEncrypt(thisTXByte, key)
+
+// 	return ct
+// }
+
 func getDecryptedTX(ct []byte, key []byte) txn.Transaction {
+
 	// Decrypt tx
 	dtx := symmetricDecrypt(ct, key)
 	// Convert []byte to txn.Transaction
@@ -482,6 +537,15 @@ func getReadArgs(key []byte) []txn.Arg {
 		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.Value")},
 		{Key: "value:key", Value: []byte(key)},
 		{Key: "value:command", Value: []byte("READ")},
+	}
+
+	return args
+}
+
+func getSelectWinnerArgs() []txn.Arg {
+	args := []txn.Arg{
+		{Key: "go.dedis.ch/dela.ContractArg", Value: []byte("go.dedis.ch/dela.AuctionF3B")},
+		{Key: "value:command", Value: []byte("SELECTWINNER")},
 	}
 
 	return args

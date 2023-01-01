@@ -124,3 +124,14 @@ func getAESKey(key [29]byte) []byte {
 	AESKey := append(key[:], 0, 0, 0)
 	return AESKey
 }
+
+func getTX(t *testing.T, manager txn.Manager, args ...txn.Arg) txn.Transaction {
+	// manager.Sync()
+
+	tx, err := manager.Make(args...)
+	t.Log("*** Inside GetTX")
+	t.Log("TX: ")
+	require.NoError(t, err)
+
+	return tx
+}
