@@ -15,34 +15,34 @@ In the F3B Auction, each bidder submits an encrypted bid transaction that is sto
 ## Project Files
 
 The project folder structure and files are outlined below:
-    * contracts
-        * bank
-            * mod.go: Implementation of bank smart contract
-            * mod_test.go: Unit testing of bank smart contract
-            * controller
-                * mod.go: Controller for bank smart contract
-                * mod_test.go: Unit testing of controller
-        * auction
-            * mod.go: Implementation of traditional auction smart contract
-            * mod_test.go: Unit testing of traditional auction smart contract
-            * controller
-                * mod.go: Controller for traditional auction smart contract
-                * mod_test.go: Unit testing of controller
-        * auctionF3B
-            * mod.go: Implementation of F3B auction smart contract
-            * mod_test.go: Unit testing of F3B auction smart contract
-            * controller
-                * mod.go: Controller for F3B auction smart contract
-                * mod_test.go: Unit testing of controller
-    * dkg
-        * pederson: Mahsa Bastankhah's implementation of F3B
-    * test
-        * SymmetricEncrypt_test.go: Implementation of AES encryption and decryption.
-        * TraditionalAuction_test.go: Integration testing for the traditional auction system
-        * TraditionalAuction_evaluation\textunderscore test.go: Latency and Throughput evaluation of the traditional auction system
-        * F3BAuction_test.go: Integration testing for the F3B auction system
-        * F3BAuction_evaluation_test.go: Latency and Throughput evaluation of the F3B auction system
-        * F3B_test: Mahsa Bastankhah's implementation of F3B
+ * contracts
+     * bank
+         * mod.go: Implementation of bank smart contract
+         * mod_test.go: Unit testing of bank smart contract
+         * controller
+             * mod.go: Controller for bank smart contract
+             * mod_test.go: Unit testing of controller
+     * auction
+         * mod.go: Implementation of traditional auction smart contract
+         * mod_test.go: Unit testing of traditional auction smart contract
+         * controller
+             * mod.go: Controller for traditional auction smart contract
+             * mod_test.go: Unit testing of controller
+     * auctionF3B
+         * mod.go: Implementation of F3B auction smart contract
+         * mod_test.go: Unit testing of F3B auction smart contract
+         * controller
+             * mod.go: Controller for F3B auction smart contract
+             * mod_test.go: Unit testing of controller
+ * dkg
+     * pederson: Mahsa Bastankhah's implementation of F3B
+ * test
+     * SymmetricEncrypt_test.go: Implementation of AES encryption and decryption.
+     * TraditionalAuction_test.go: Integration testing for the traditional auction system
+     * TraditionalAuction_evaluation\textunderscore test.go: Latency and Throughput evaluation of the traditional auction system
+     * F3BAuction_test.go: Integration testing for the F3B auction system
+     * F3BAuction_evaluation_test.go: Latency and Throughput evaluation of the F3B auction system
+     * F3B_test: Mahsa Bastankhah's implementation of F3B
 
 This framework aims to deliver a modular approach to a public ledger implementation. This project is under heavy development at this stage. Don't consider using it for the moment.
 
