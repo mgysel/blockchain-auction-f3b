@@ -2,7 +2,9 @@
 
 ## Project Description
 
-This project implements a traditional and F3B sealed-bid blockchain auction on EPFL Decentralized and Distributed Computing Laboratory's Dela using Flash Freezing Flash Boys (F3B).  In sealed-bid auctions, all bidders submit secret bids during the bidding period. When the bidding period is complete, the bids are unsealed and the highest bidder is declared the winner.
+This project implements a traditional and F3B sealed-bid blockchain auction on EPFL Decentralized and Distributed Computing Laboratory's Dela using Flash Freezing Flash Boys (F3B).  In sealed-bid auctions, all bidders submit secret bids during the bidding period. When the bidding period is complete, the bids are unsealed and the highest bidder is declared the winner. 
+
+An in-depth discussion of the project can be viewed in `Final Report.pdf` and `Final Presentation.pdf`.
 
 ### Traditional Auction Description
 In the traditional auction, each bidder submits a bid transaction during the bidding period and a reveal transaction during the reveal period. The bid transaction consists of both a commit and deposit. The bidder’s commit is the SHA256 hash of the bid and a chosen random nonce. The bidder’s deposit is a payment at least as large as the bid itself.The reveal transaction consists of the bid and random nonce. 
